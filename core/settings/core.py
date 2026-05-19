@@ -27,6 +27,10 @@ class CoreSettings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # --- Telegram bot ---
+    BOT_TOKEN: str = ""
+    BOT_PARSE_MODE: str = "HTML"
+
     # --- CORS ---
     CORS_ORIGINS: list[str] = ["*"]
     CORS_ALLOW_CREDENTIALS: bool = True

@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from core.settings import core_settings
 from core.db.base import Base
 
-import apps.auth.models
+import apps.auth.models  # noqa: F401
+import apps.bot.models  # noqa: F401
+import apps.testing.models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

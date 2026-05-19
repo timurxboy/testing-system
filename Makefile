@@ -1,6 +1,6 @@
 .PHONY: install pre-commit-install lint format typecheck check \
        migrate migration upgrade downgrade migrate-history \
-       createsuperuser run
+       createsuperuser run bot
 
 # ---- Setup ----
 install:
@@ -50,3 +50,7 @@ createsuperuser:
 
 run:
 	poetry run uvicorn main:app --reload
+
+# ---- Bot ----
+bot:
+	poetry run python -m apps.bot.cli.run_bot
