@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Base-Structure UI API",
+        title="Testing-System UI API",
         lifespan=lifespan,
     )
 

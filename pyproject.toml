@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "base-structure-fastapi"
+name = "testing-system"
 version = "0.1.0"
 description = ""
 authors = ["Temurbek Rakhimkuliev <timurxboy@gmail.com>"]

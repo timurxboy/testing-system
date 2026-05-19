@@ -1,4 +1,4 @@
-# FastAPI Base Structure
+# Testing System
 
 [English](#english) | [Русский](#русский)
 
@@ -89,7 +89,7 @@ Designed as a **template** that scales into a monolith or microservices.
 
 ```bash
 # 1. Clone and install
-git clone <repo-url> && cd base-structure-fastapi
+git clone <repo-url> && cd testing-system
 poetry install
 
 # 2. Setup pre-commit hooks
@@ -262,7 +262,7 @@ POETRY_EXTRAS="scheduler s3"
 
 ```bash
 # 1. Клонировать и установить
-git clone <repo-url> && cd base-structure-fastapi
+git clone <repo-url> && cd testing-system
 poetry install
 
 # 2. Установить pre-commit хуки
