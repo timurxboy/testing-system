@@ -180,3 +180,4 @@ configs/geofence_datas.json
 configs/geofence_datas.geojson
 ai
 resources
+logs/

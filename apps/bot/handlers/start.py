@@ -4,12 +4,21 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.bot import text
 from apps.bot.keyboards.reply import main_menu, remove_keyboard
 from apps.bot.services.admin_service import AdminService
 from apps.bot.services.user_service import UserService
 from apps.bot.states import Registration
 
 router = Router(name="start")
+
+_MIN_ID_LEN = 1
+_MAX_ID_LEN = 64
+
+
+def _is_valid_student_id(raw: str) -> bool:
+    s = raw.strip()
+    return _MIN_ID_LEN <= len(s) <= _MAX_ID_LEN
 
 
 @router.message(CommandStart())
@@ -23,60 +32,42 @@ async def cmd_start(message: Message, state: FSMContext, session: AsyncSession) 
     )
 
     if not user.is_registered:
-        await state.set_state(Registration.waiting_for_first_name)
-        await message.answer(
-            "Привет! Давай познакомимся.\nКак тебя зовут? Напиши <b>имя</b>.",
-            reply_markup=remove_keyboard(),
-        )
+        await state.set_state(Registration.waiting_for_student_id)
+        await message.answer(text.WELCOME_NEW, reply_markup=remove_keyboard())
         return
 
     is_admin = await AdminService(session).is_admin(message.from_user.id)
     await message.answer(
-        f"С возвращением, {user.first_name}!\nВыбери действие в меню ниже.",
+        text.WELCOME_BACK.format(student_id=user.student_id),
         reply_markup=main_menu(is_admin=is_admin),
     )
 
 
-@router.message(Registration.waiting_for_first_name, F.text)
-async def receive_first_name(
+@router.message(Registration.waiting_for_student_id, F.text)
+async def receive_student_id(
     message: Message, state: FSMContext, session: AsyncSession
 ) -> None:
-    first_name = (message.text or "").strip()
-    if not first_name or len(first_name) > 120:
-        await message.answer("Введи корректное имя (до 120 символов).")
+    raw = message.text or ""
+    if not _is_valid_student_id(raw):
+        await message.answer(text.INVALID_STUDENT_ID)
         return
 
-    user = await UserService(session).get_by_telegram_id(message.from_user.id)
+    student_id = raw.strip()
+    user_service = UserService(session)
+
+    user = await user_service.get_by_telegram_id(message.from_user.id)
     if user is None:
         await state.clear()
-        await message.answer("Что-то пошло не так. Нажми /start ещё раз.")
+        await message.answer(text.SESSION_LOST)
         return
 
-    await UserService(session).set_first_name(user, first_name)
-    await state.set_state(Registration.waiting_for_last_name)
-    await message.answer("Отлично! Теперь напиши <b>фамилию</b>.")
-
-
-@router.message(Registration.waiting_for_last_name, F.text)
-async def receive_last_name(
-    message: Message, state: FSMContext, session: AsyncSession
-) -> None:
-    last_name = (message.text or "").strip()
-    if not last_name or len(last_name) > 120:
-        await message.answer("Введи корректную фамилию (до 120 символов).")
+    existing = await user_service.get_by_student_id(student_id)
+    if existing is not None and existing.id != user.id:
+        await message.answer(text.STUDENT_ID_TAKEN)
         return
 
-    user = await UserService(session).get_by_telegram_id(message.from_user.id)
-    if user is None:
-        await state.clear()
-        await message.answer("Что-то пошло не так. Нажми /start ещё раз.")
-        return
-
-    await UserService(session).set_last_name(user, last_name)
+    await user_service.set_student_id(user, student_id)
     await state.clear()
 
     is_admin = await AdminService(session).is_admin(message.from_user.id)
-    await message.answer(
-        f"Готово, {user.first_name} {last_name}! Можешь приступать к тестам.",
-        reply_markup=main_menu(is_admin=is_admin),
-    )
+    await message.answer(text.REGISTRATION_OK, reply_markup=main_menu(is_admin=is_admin))

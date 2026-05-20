@@ -9,9 +9,9 @@ from apps.testing.models.subject import Subject
 
 
 class AnswerOptionAdmin(AdminMixin, ModelView, model=AnswerOption):
-    name = "Answer option"
-    name_plural = "Answer options"
-    category = "Testing"
+    name = "Javob varianti"
+    name_plural = "Javob variantlari"
+    category = "Testlar"
     icon = "fa-solid fa-list-check"
 
     column_list = [
@@ -27,7 +27,12 @@ class AnswerOptionAdmin(AdminMixin, ModelView, model=AnswerOption):
         AnswerOption.text,
         AnswerOption.is_correct,
     ]
-    column_labels = {"question": "Question"}
+    column_labels = {
+        "id": "ID",
+        "question": "Savol",
+        "text": "Matn",
+        "is_correct": "To'g'ri",
+    }
 
     form_create_rules = ["question", "text", "is_correct"]
     form_edit_rules = ["question", "text", "is_correct"]

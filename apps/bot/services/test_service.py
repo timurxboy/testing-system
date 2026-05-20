@@ -53,6 +53,7 @@ class TestService:
         question_id: int,
         selected_option_id: int,
         is_correct: bool,
+        attempt_session_id: int | None = None,
     ) -> TestAttempt:
         attempt = TestAttempt(
             bot_user_id=bot_user_id,
@@ -60,6 +61,7 @@ class TestService:
             question_id=question_id,
             selected_option_id=selected_option_id,
             is_correct=is_correct,
+            attempt_session_id=attempt_session_id,
         )
         self.session.add(attempt)
         await self.session.commit()

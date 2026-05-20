@@ -14,6 +14,12 @@ class UserService:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_student_id(self, student_id: str) -> BotUser | None:
+        result = await self.session.execute(
+            select(BotUser).where(BotUser.student_id == student_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_or_create(
         self,
         *,
@@ -38,14 +44,8 @@ class UserService:
 
         return user
 
-    async def set_first_name(self, user: BotUser, first_name: str) -> BotUser:
-        user.first_name = first_name.strip()
-        await self.session.commit()
-        await self.session.refresh(user)
-        return user
-
-    async def set_last_name(self, user: BotUser, last_name: str) -> BotUser:
-        user.last_name = last_name.strip()
+    async def set_student_id(self, user: BotUser, student_id: str) -> BotUser:
+        user.student_id = student_id.strip()
         await self.session.commit()
         await self.session.refresh(user)
         return user

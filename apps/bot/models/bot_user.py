@@ -18,23 +18,16 @@ class BotUser(Base, IDMixin, TimestampMixin, TableNameMixin, ReprMixin):
         nullable=True,
     )
 
-    first_name: Mapped[str | None] = mapped_column(
-        String(length=120),
+    student_id: Mapped[str | None] = mapped_column(
+        String(length=64),
+        unique=True,
         nullable=True,
-    )
-
-    last_name: Mapped[str | None] = mapped_column(
-        String(length=120),
-        nullable=True,
+        index=True,
     )
 
     @property
     def is_registered(self) -> bool:
-        return bool(self.first_name) and bool(self.last_name)
-
-    @property
-    def full_name(self) -> str:
-        return f"{self.first_name or ''} {self.last_name or ''}".strip()
+        return bool(self.student_id)
 
     def __str__(self) -> str:
-        return f"{self.full_name or '-'} (tg={self.telegram_id})"
+        return self.student_id or f"tg:{self.telegram_id}"

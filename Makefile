@@ -1,6 +1,6 @@
 .PHONY: install pre-commit-install lint format typecheck check \
        migrate migration upgrade downgrade migrate-history \
-       createsuperuser run bot
+       createsuperuser run bot seed seed-reset
 
 # ---- Setup ----
 install:
@@ -54,3 +54,13 @@ run:
 # ---- Bot ----
 bot:
 	poetry run python -m apps.bot.cli.run_bot
+
+# ---- Seed ----
+# Заливает демо-предметы/вопросы/варианты (идемпотентно).
+seed:
+	poetry run python -m apps.testing.cli.seed
+
+# Полная перезаливка: дропает ВСЕ предметы (каскадом — вопросы, варианты,
+# попытки, сессии) и заливает заново. DESTRUCTIVE.
+seed-reset:
+	poetry run python -m apps.testing.cli.seed --reset

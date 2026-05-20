@@ -8,9 +8,9 @@ from apps.testing.models.subject import Subject
 
 
 class QuestionAdmin(AdminMixin, ModelView, model=Question):
-    name = "Question"
-    name_plural = "Questions"
-    category = "Testing"
+    name = "Savol"
+    name_plural = "Savollar"
+    category = "Testlar"
     icon = "fa-solid fa-circle-question"
 
     column_list = [
@@ -28,7 +28,14 @@ class QuestionAdmin(AdminMixin, ModelView, model=Question):
         Question.is_active,
         Question.created_at,
     ]
-    column_labels = {"subject": "Subject", "text": "Question"}
+    column_labels = {
+        "id": "ID",
+        "subject": "Fan",
+        "text": "Savol",
+        "is_active": "Faol",
+        "options": "Variantlar",
+        "created_at": "Yaratilgan",
+    }
 
     form_create_rules = ["subject", "text", "is_active", "options"]
     form_edit_rules = ["subject", "text", "is_active", "options"]

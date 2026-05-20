@@ -2,6 +2,7 @@ from collections.abc import Iterable, Sequence
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from apps.bot import text
 from apps.bot.services.stats_service import StatsPeriod
 from apps.testing.models.subject import Subject
 
@@ -25,7 +26,9 @@ def subjects_keyboard(subjects: Iterable[Subject]) -> InlineKeyboardMarkup:
         ]
         for subject in subjects
     ]
-    rows.append([InlineKeyboardButton(text="❌ Отмена", callback_data=CANCEL_TEST_CB)])
+    rows.append(
+        [InlineKeyboardButton(text=text.BTN_CANCEL_TEST, callback_data=CANCEL_TEST_CB)]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -43,7 +46,9 @@ def options_keyboard(entries: Sequence[tuple[str, int]]) -> InlineKeyboardMarkup
     for i in range(0, len(buttons), MAX_OPTIONS_PER_ROW):
         rows.append(buttons[i : i + MAX_OPTIONS_PER_ROW])
 
-    rows.append([InlineKeyboardButton(text="❌ Прервать тест", callback_data=CANCEL_TEST_CB)])
+    rows.append(
+        [InlineKeyboardButton(text=text.BTN_CANCEL_TEST, callback_data=CANCEL_TEST_CB)]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -60,15 +65,15 @@ def stats_keyboard(
 ) -> InlineKeyboardMarkup:
     period_row = [
         InlineKeyboardButton(
-            text=("• Неделя •" if period is StatsPeriod.WEEK else "Неделя"),
+            text=("• " + text.PERIOD_WEEK + " •") if period is StatsPeriod.WEEK else text.PERIOD_WEEK,
             callback_data=_stats_cb(StatsPeriod.WEEK, 0),
         ),
         InlineKeyboardButton(
-            text=("• Месяц •" if period is StatsPeriod.MONTH else "Месяц"),
+            text=("• " + text.PERIOD_MONTH + " •") if period is StatsPeriod.MONTH else text.PERIOD_MONTH,
             callback_data=_stats_cb(StatsPeriod.MONTH, 0),
         ),
         InlineKeyboardButton(
-            text=("• Год •" if period is StatsPeriod.YEAR else "Год"),
+            text=("• " + text.PERIOD_YEAR + " •") if period is StatsPeriod.YEAR else text.PERIOD_YEAR,
             callback_data=_stats_cb(StatsPeriod.YEAR, 0),
         ),
     ]
@@ -77,12 +82,12 @@ def stats_keyboard(
     if offset > 0:
         prev_offset = max(offset - page_size, 0)
         nav_row.append(
-            InlineKeyboardButton(text="◀ Назад", callback_data=_stats_cb(period, prev_offset))
+            InlineKeyboardButton(text=text.BTN_PREV, callback_data=_stats_cb(period, prev_offset))
         )
     if offset + page_size < total_users:
         nav_row.append(
             InlineKeyboardButton(
-                text="Вперёд ▶",
+                text=text.BTN_NEXT,
                 callback_data=_stats_cb(period, offset + page_size),
             )
         )

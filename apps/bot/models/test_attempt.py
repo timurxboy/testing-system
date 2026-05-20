@@ -1,6 +1,7 @@
 from sqlalchemy import BigInteger, Boolean, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from apps.bot.models.attempt_session import AttemptSession
 from apps.bot.models.bot_user import BotUser
 from apps.testing.models.answer_option import AnswerOption
 from apps.testing.models.question import Question
@@ -37,6 +38,13 @@ class TestAttempt(Base, IDMixin, TimestampMixin, TableNameMixin, ReprMixin):
         nullable=True,
     )
 
+    attempt_session_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("attemptsessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     is_correct: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -47,3 +55,4 @@ class TestAttempt(Base, IDMixin, TimestampMixin, TableNameMixin, ReprMixin):
     subject: Mapped[Subject] = relationship()
     question: Mapped[Question] = relationship()
     selected_option: Mapped[AnswerOption | None] = relationship()
+    attempt_session: Mapped[AttemptSession | None] = relationship()

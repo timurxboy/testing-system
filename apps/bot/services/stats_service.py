@@ -2,11 +2,12 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
-from sqlalchemy import Integer, distinct, func, select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.bot.models.bot_user import BotUser
 from apps.bot.models.test_attempt import TestAttempt
+from apps.testing.models.question import Question
 from apps.testing.models.subject import Subject
 
 PAGE_SIZE = 5
@@ -28,8 +29,8 @@ _PERIOD_DAYS: dict[StatsPeriod, int] = {
 @dataclass(slots=True)
 class SubjectStat:
     subject_name: str
-    total: int
-    correct: int
+    correct: int  # уникальные правильно решённые вопросы юзером
+    total: int  # всего активных вопросов в предмете
 
 
 @dataclass(slots=True)
@@ -37,10 +38,14 @@ class UserStats:
     user_id: int
     telegram_id: int
     telegram_username: str | None
-    full_name: str
-    total: int
-    correct: int
+    student_id: str | None
+    correct: int  # сумма correct по предметам, к которым касался
+    total: int  # сумма active questions в этих предметах
     by_subject: list[SubjectStat] = field(default_factory=list)
+
+    @property
+    def display_name(self) -> str:
+        return self.student_id or self.telegram_username or f"tg:{self.telegram_id}"
 
     @property
     def accuracy(self) -> float:
@@ -54,8 +59,6 @@ class StatsPage:
     offset: int
     page_size: int
     total_users: int
-    total_attempts: int
-    total_correct: int
     rows: list[UserStats]
 
     @property
@@ -93,86 +96,113 @@ class StatsService:
         page_size: int = PAGE_SIZE,
     ) -> StatsPage:
         since = self.since_for(period)
-        correct_sum = func.coalesce(func.sum(TestAttempt.is_correct.cast(Integer)), 0)
 
-        totals_result = await self.session.execute(
-            select(
-                func.count(TestAttempt.id),
-                correct_sum,
-                func.count(distinct(TestAttempt.bot_user_id)),
-            ).where(TestAttempt.created_at >= since)
+        # "Уникальные правильные" — для (user, question) считаем 1, если был хоть один is_correct ответ.
+        correct_unique = func.count(
+            distinct(TestAttempt.question_id)
+        ).filter(TestAttempt.is_correct.is_(True))
+
+        total_users_q = await self.session.execute(
+            select(func.count(distinct(TestAttempt.bot_user_id))).where(
+                TestAttempt.created_at >= since
+            )
         )
-        total_attempts, total_correct, total_users = totals_result.one()
+        total_users = int(total_users_q.scalar_one() or 0)
 
         rows_result = await self.session.execute(
             select(
                 BotUser.id,
                 BotUser.telegram_id,
                 BotUser.telegram_username,
-                BotUser.first_name,
-                BotUser.last_name,
-                func.count(TestAttempt.id).label("total"),
-                correct_sum.label("correct"),
+                BotUser.student_id,
+                correct_unique.label("correct"),
             )
             .join(TestAttempt, TestAttempt.bot_user_id == BotUser.id)
             .where(TestAttempt.created_at >= since)
             .group_by(BotUser.id)
-            .order_by(func.count(TestAttempt.id).desc(), BotUser.id)
+            .order_by(correct_unique.desc(), BotUser.id)
             .offset(max(offset, 0))
             .limit(page_size)
         )
 
         rows: list[UserStats] = []
         user_id_to_row: dict[int, UserStats] = {}
-        for user_id, tg_id, tg_username, first_name, last_name, total, correct in rows_result.all():
-            full_name = (
-                f"{first_name or ''} {last_name or ''}".strip()
-                or tg_username
-                or f"tg:{tg_id}"
-            )
+        for user_id, tg_id, tg_username, student_id, _correct in rows_result.all():
             row = UserStats(
                 user_id=user_id,
                 telegram_id=tg_id,
                 telegram_username=tg_username,
-                full_name=full_name,
-                total=int(total),
-                correct=int(correct),
+                student_id=student_id,
+                correct=0,
+                total=0,
             )
             rows.append(row)
             user_id_to_row[user_id] = row
 
-        if rows:
-            breakdown_result = await self.session.execute(
-                select(
-                    TestAttempt.bot_user_id,
-                    Subject.name,
-                    func.count(TestAttempt.id),
-                    correct_sum,
-                )
-                .join(Subject, Subject.id == TestAttempt.subject_id)
-                .where(
-                    TestAttempt.created_at >= since,
-                    TestAttempt.bot_user_id.in_(list(user_id_to_row.keys())),
-                )
-                .group_by(TestAttempt.bot_user_id, Subject.name)
-                .order_by(TestAttempt.bot_user_id, func.count(TestAttempt.id).desc())
+        if not rows:
+            return StatsPage(
+                period=period,
+                since=since,
+                offset=max(offset, 0),
+                page_size=page_size,
+                total_users=total_users,
+                rows=[],
             )
-            for user_id, subject_name, total, correct in breakdown_result.all():
-                user_id_to_row[user_id].by_subject.append(
-                    SubjectStat(
-                        subject_name=subject_name,
-                        total=int(total),
-                        correct=int(correct),
-                    )
+
+        # Per (user, subject) — уникальные правильные
+        breakdown = await self.session.execute(
+            select(
+                TestAttempt.bot_user_id,
+                Subject.id,
+                Subject.name,
+                correct_unique.label("correct"),
+            )
+            .join(Subject, Subject.id == TestAttempt.subject_id)
+            .where(
+                TestAttempt.created_at >= since,
+                TestAttempt.bot_user_id.in_(list(user_id_to_row.keys())),
+            )
+            .group_by(TestAttempt.bot_user_id, Subject.id, Subject.name)
+        )
+
+        per_user_subjects: dict[int, list[tuple[int, str, int]]] = {}
+        subject_ids: set[int] = set()
+        for user_id, sub_id, sub_name, correct in breakdown.all():
+            per_user_subjects.setdefault(user_id, []).append(
+                (int(sub_id), sub_name, int(correct))
+            )
+            subject_ids.add(int(sub_id))
+
+        # Всего активных вопросов в каждом из встреченных предметов
+        totals_per_subject: dict[int, int] = {}
+        if subject_ids:
+            totals_q = await self.session.execute(
+                select(Question.subject_id, func.count(Question.id))
+                .where(
+                    Question.subject_id.in_(list(subject_ids)),
+                    Question.is_active.is_(True),
                 )
+                .group_by(Question.subject_id)
+            )
+            totals_per_subject = {int(sid): int(cnt) for sid, cnt in totals_q.all()}
+
+        # Сборка breakdown + агрегатов по юзерам
+        for user_id, row in user_id_to_row.items():
+            entries = per_user_subjects.get(user_id, [])
+            entries.sort(key=lambda e: e[2], reverse=True)
+            for sub_id, sub_name, correct in entries:
+                total = totals_per_subject.get(sub_id, 0)
+                row.by_subject.append(
+                    SubjectStat(subject_name=sub_name, correct=correct, total=total)
+                )
+                row.correct += correct
+                row.total += total
 
         return StatsPage(
             period=period,
             since=since,
             offset=max(offset, 0),
             page_size=page_size,
-            total_users=int(total_users),
-            total_attempts=int(total_attempts),
-            total_correct=int(total_correct),
+            total_users=total_users,
             rows=rows,
         )
