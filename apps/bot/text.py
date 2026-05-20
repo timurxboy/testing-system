@@ -24,7 +24,20 @@ TEST_INTERRUPTED = "Test bekor qilindi"
 # ---- Menu (reply keyboard) ----
 BTN_TAKE_TEST = "📚 Testlarni bajarish"
 BTN_STATS = "📊 Statistika"
+BTN_QUESTION_COUNT_PREFIX = "🔢 Savollar soni"
+BTN_QUESTION_COUNT_TEMPLATE = "🔢 Savollar soni: {count}"
 MENU_PROMPT = "Bosh menyu:"
+
+# ---- Question count ----
+CHOOSE_QUESTION_COUNT = (
+    "Bir testda nechta savol bo'lishini tanlang.\n"
+    "Keyinroq bu sonni menyudan o'zgartirishingiz mumkin."
+)
+CHANGE_QUESTION_COUNT = (
+    "Hozirgi savollar soni: <b>{count}</b>.\n"
+    "Yangi sonni tanlang:"
+)
+QUESTION_COUNT_SAVED = "Savollar soni saqlandi: <b>{count}</b>."
 
 # ---- Testing ----
 CHOOSE_SUBJECT = "Fanni tanlang:"
@@ -55,8 +68,15 @@ WRONG_YOU_PICKED = "Sizning javobingiz: <b>{label})</b> {text}"
 WRONG_CORRECT_IS = "To'g'ri javob: <b>{label})</b> {text}"
 
 TEST_FINISHED_HEADER = "🎉 <b>Urinish yakunlandi!</b>"
-TEST_FINISHED_LINE = "To'g'ri javoblar: <b>{correct}</b> / {total}"
+TEST_CANCELLED_HEADER = "⏹ <b>Test bekor qilindi.</b>"
+TEST_FINISHED_LINE = "To'g'ri javoblar: <b>{correct}</b> / {total} ({percent:.0f}%)"
+TEST_FINISHED_GRADE = "Baho: <b>{grade}</b>"
 TEST_NO_ANSWERS = "Test yakunlandi. Hech qanday savol javoblanmadi."
+
+GRADE_EXCELLENT = "A'LO"
+GRADE_GOOD = "YAXSHI"
+GRADE_SATISFACTORY = "QONIQARLI"
+GRADE_UNSATISFACTORY = "QONIQARSIZ"
 
 # ---- Inline buttons ----
 BTN_CANCEL_TEST = "❌ Testni bekor qilish"
@@ -69,6 +89,11 @@ STATS_SINCE = "{since:%Y-%m-%d %H:%M} UTC dan"
 STATS_TOTALS = "Foydalanuvchilar: <b>{users}</b>"
 STATS_NO_DATA = "Tanlangan davr uchun ma'lumot yo'q."
 STATS_PAGE = "Sahifa {n} / {total}"
+STATS_USER_HEADER = "<b>{idx}.</b> {link} — {attempts} ta urinish"
+STATS_ATTEMPT_LINE = (
+    "   • {subject} (#{n}): {correct}/{total} ({percent:.0f}%) — {grade}{cancelled}"
+)
+STATS_ATTEMPT_CANCELLED = " ⏹"
 PERIOD_WEEK = "Hafta"
 PERIOD_MONTH = "Oy"
 PERIOD_YEAR = "Yil"

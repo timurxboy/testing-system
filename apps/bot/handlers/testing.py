@@ -24,6 +24,28 @@ from apps.bot.states import Testing
 router = Router(name="testing")
 
 
+def _grade_for(percent: float) -> str:
+    if percent >= 90:
+        return text.GRADE_EXCELLENT
+    if percent >= 80:
+        return text.GRADE_GOOD
+    if percent >= 70:
+        return text.GRADE_SATISFACTORY
+    return text.GRADE_UNSATISFACTORY
+
+
+def _result_body(
+    *, correct: int, total: int, cancelled: bool
+) -> str:
+    if total == 0:
+        return text.TEST_NO_ANSWERS
+    percent = correct / total * 100
+    header = text.TEST_CANCELLED_HEADER if cancelled else text.TEST_FINISHED_HEADER
+    line = text.TEST_FINISHED_LINE.format(correct=correct, total=total, percent=percent)
+    grade = text.TEST_FINISHED_GRADE.format(grade=_grade_for(percent))
+    return f"{header}\n{line}\n{grade}"
+
+
 def _label_for(index: int) -> str:
     return chr(ord("A") + index)
 
@@ -123,18 +145,18 @@ async def _finish_attempt(
     attempt_service = AttemptService(session)
     finished = await attempt_service.finish(attempt_session)
     is_admin = await AdminService(session).is_admin(chat_message.chat.id)
+    user = await UserService(session).get_by_telegram_id(chat_message.chat.id)
+    question_count = user.preferred_question_count if user else None
 
-    if finished.total_questions == 0:
-        body = text.TEST_NO_ANSWERS
-    else:
-        body = (
-            f"{text.TEST_FINISHED_HEADER}\n"
-            + text.TEST_FINISHED_LINE.format(
-                correct=finished.correct_count,
-                total=finished.total_questions,
-            )
-        )
-    await chat_message.answer(body, reply_markup=main_menu(is_admin=is_admin))
+    body = _result_body(
+        correct=finished.correct_count,
+        total=finished.total_questions,
+        cancelled=False,
+    )
+    await chat_message.answer(
+        body,
+        reply_markup=main_menu(is_admin=is_admin, question_count=question_count),
+    )
 
 
 # ---- Entry points ------------------------------------------------------------
@@ -147,6 +169,10 @@ async def start_test_flow(
     user = await UserService(session).get_by_telegram_id(message.from_user.id)
     if user is None or not user.is_registered:
         await message.answer(text.NOT_REGISTERED)
+        return
+
+    if user.preferred_question_count is None:
+        await message.answer(text.CHOOSE_QUESTION_COUNT)
         return
 
     subjects = await TestService(session).list_active_subjects()
@@ -176,9 +202,15 @@ async def choose_subject(
         await callback.answer(text.SUBJECT_INACTIVE, show_alert=True)
         return
 
+    if user.preferred_question_count is None:
+        await callback.answer(text.CHOOSE_QUESTION_COUNT, show_alert=True)
+        return
+
     attempt_service = AttemptService(session)
     result = await attempt_service.start_or_resume(
-        bot_user_id=user.id, subject=subject
+        bot_user_id=user.id,
+        subject=subject,
+        questions_per_attempt=user.preferred_question_count,
     )
 
     if result.error == AttemptStartError.NO_QUESTIONS:
@@ -186,7 +218,11 @@ async def choose_subject(
         await callback.message.edit_text(text.SUBJECT_NO_QUESTIONS)
         is_admin = await AdminService(session).is_admin(callback.from_user.id)
         await callback.message.answer(
-            text.MENU_PROMPT, reply_markup=main_menu(is_admin=is_admin)
+            text.MENU_PROMPT,
+            reply_markup=main_menu(
+                is_admin=is_admin,
+                question_count=user.preferred_question_count,
+            ),
         )
         await state.clear()
         return
@@ -337,14 +373,26 @@ async def cancel_test(
     except Exception:
         pass
 
+    correct = 0
+    total = 0
     if attempt_session_id:
         attempt_service = AttemptService(session)
         attempt_session = await attempt_service.get_session(attempt_session_id)
         if attempt_session is not None:
+            correct = attempt_session.correct_count
+            total = attempt_session.total_questions
             await attempt_service.abort(attempt_session)
 
     await state.clear()
     is_admin = await AdminService(session).is_admin(callback.from_user.id)
+    user = await UserService(session).get_by_telegram_id(callback.from_user.id)
+    question_count = user.preferred_question_count if user else None
+
+    if total > 0:
+        body = _result_body(correct=correct, total=total, cancelled=True)
+    else:
+        body = text.MENU_PROMPT
     await callback.message.answer(
-        text.MENU_PROMPT, reply_markup=main_menu(is_admin=is_admin)
+        body,
+        reply_markup=main_menu(is_admin=is_admin, question_count=question_count),
     )

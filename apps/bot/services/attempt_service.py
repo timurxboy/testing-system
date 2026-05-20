@@ -98,6 +98,7 @@ class AttemptService:
         *,
         bot_user_id: int,
         subject: Subject,
+        questions_per_attempt: int,
     ) -> AttemptStartResult:
         if not subject.is_active:
             return AttemptStartResult(
@@ -146,7 +147,7 @@ class AttemptService:
             pool = list(all_ids)
             new_round = True
 
-        take = min(subject.questions_per_attempt, len(pool))
+        take = min(questions_per_attempt, len(pool))
         question_ids = random.sample(pool, take)
 
         attempts_count = await self._count_attempts(

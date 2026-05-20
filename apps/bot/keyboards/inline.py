@@ -13,7 +13,26 @@ CANCEL_TEST_CB = "cancel_test"
 # format: stats:<period>:<offset>
 STATS_CB_PREFIX = "stats:"
 
+# format: qcount:<count>
+QCOUNT_CB_PREFIX = "qcount:"
+
 MAX_OPTIONS_PER_ROW = 4
+
+
+def question_count_keyboard(
+    choices: Iterable[int], *, current: int | None = None
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    for n in choices:
+        label = f"• {n} •" if current == n else str(n)
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=label, callback_data=f"{QCOUNT_CB_PREFIX}{n}"
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def subjects_keyboard(subjects: Iterable[Subject]) -> InlineKeyboardMarkup:

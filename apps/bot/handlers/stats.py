@@ -6,8 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.bot import text
 from apps.bot.keyboards.inline import STATS_CB_PREFIX, stats_keyboard
+from apps.bot.models.attempt_session import AttemptSessionStatus
 from apps.bot.services.admin_service import AdminService
 from apps.bot.services.stats_service import (
+    AttemptStat,
     StatsPage,
     StatsPeriod,
     StatsService,
@@ -30,13 +32,41 @@ def _user_link(user: UserStats) -> str:
     return f'<a href="tg://user?id={user.telegram_id}">{name}</a>'
 
 
+def _grade_for(percent: float) -> str:
+    if percent >= 90:
+        return text.GRADE_EXCELLENT
+    if percent >= 80:
+        return text.GRADE_GOOD
+    if percent >= 70:
+        return text.GRADE_SATISFACTORY
+    return text.GRADE_UNSATISFACTORY
+
+
+def _format_attempt(attempt: AttemptStat) -> str:
+    cancelled = (
+        text.STATS_ATTEMPT_CANCELLED
+        if attempt.status is AttemptSessionStatus.ABORTED
+        else ""
+    )
+    return text.STATS_ATTEMPT_LINE.format(
+        subject=escape(attempt.subject_name),
+        n=attempt.attempt_number,
+        correct=attempt.correct,
+        total=attempt.total,
+        percent=attempt.accuracy,
+        grade=_grade_for(attempt.accuracy),
+        cancelled=cancelled,
+    )
+
+
 def _format_user(user: UserStats, index: int) -> str:
-    lines = [
-        f"<b>{index}.</b> {_user_link(user)} — "
-        f"{user.correct}/{user.total} ({user.accuracy:.0f}%)"
-    ]
-    for s in user.by_subject:
-        lines.append(f"   • {escape(s.subject_name)}: {s.correct}/{s.total}")
+    header = text.STATS_USER_HEADER.format(
+        idx=index, link=_user_link(user), attempts=user.total_attempts
+    )
+    if not user.attempts:
+        return header
+    lines = [header]
+    lines.extend(_format_attempt(a) for a in user.attempts)
     return "\n".join(lines)
 
 

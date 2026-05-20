@@ -1,10 +1,10 @@
 from apps.bot.services.admin_service import AdminService
 from apps.bot.services.stats_service import (
     PAGE_SIZE,
+    AttemptStat,
     StatsPage,
     StatsPeriod,
     StatsService,
-    SubjectStat,
     UserStats,
 )
 from apps.bot.services.test_service import TestService
@@ -18,6 +18,6 @@ __all__ = [
     "StatsPeriod",
     "StatsPage",
     "UserStats",
-    "SubjectStat",
+    "AttemptStat",
     "PAGE_SIZE",
 ]

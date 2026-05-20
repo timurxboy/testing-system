@@ -1,8 +1,10 @@
-from sqlalchemy import BigInteger, String
+from sqlalchemy import BigInteger, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.db.base import Base
 from core.db.mixins import IDMixin, ReprMixin, TableNameMixin, TimestampMixin
+
+QUESTION_COUNT_CHOICES: tuple[int, ...] = (25, 50, 100)
 
 
 class BotUser(Base, IDMixin, TimestampMixin, TableNameMixin, ReprMixin):
@@ -25,9 +27,18 @@ class BotUser(Base, IDMixin, TimestampMixin, TableNameMixin, ReprMixin):
         index=True,
     )
 
+    preferred_question_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
     @property
     def is_registered(self) -> bool:
         return bool(self.student_id)
+
+    @property
+    def is_setup_complete(self) -> bool:
+        return self.is_registered and self.preferred_question_count is not None
 
     def __str__(self) -> str:
         return self.student_id or f"tg:{self.telegram_id}"

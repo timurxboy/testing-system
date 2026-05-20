@@ -49,3 +49,9 @@ class UserService:
         await self.session.commit()
         await self.session.refresh(user)
         return user
+
+    async def set_question_count(self, user: BotUser, count: int) -> BotUser:
+        user.preferred_question_count = count
+        await self.session.commit()
+        await self.session.refresh(user)
+        return user

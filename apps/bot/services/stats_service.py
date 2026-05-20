@@ -5,9 +5,8 @@ from enum import StrEnum
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.bot.models.attempt_session import AttemptSession, AttemptSessionStatus
 from apps.bot.models.bot_user import BotUser
-from apps.bot.models.test_attempt import TestAttempt
-from apps.testing.models.question import Question
 from apps.testing.models.subject import Subject
 
 PAGE_SIZE = 5
@@ -27,10 +26,17 @@ _PERIOD_DAYS: dict[StatsPeriod, int] = {
 
 
 @dataclass(slots=True)
-class SubjectStat:
+class AttemptStat:
     subject_name: str
-    correct: int  # уникальные правильно решённые вопросы юзером
-    total: int  # всего активных вопросов в предмете
+    correct: int
+    total: int
+    attempt_number: int
+    status: AttemptSessionStatus
+    finished_at: datetime
+
+    @property
+    def accuracy(self) -> float:
+        return (self.correct / self.total * 100) if self.total else 0.0
 
 
 @dataclass(slots=True)
@@ -39,17 +45,21 @@ class UserStats:
     telegram_id: int
     telegram_username: str | None
     student_id: str | None
-    correct: int  # сумма correct по предметам, к которым касался
-    total: int  # сумма active questions в этих предметах
-    by_subject: list[SubjectStat] = field(default_factory=list)
+    attempts: list[AttemptStat] = field(default_factory=list)
 
     @property
     def display_name(self) -> str:
         return self.student_id or self.telegram_username or f"tg:{self.telegram_id}"
 
     @property
-    def accuracy(self) -> float:
-        return (self.correct / self.total * 100) if self.total else 0.0
+    def total_attempts(self) -> int:
+        return len(self.attempts)
+
+    @property
+    def average_accuracy(self) -> float:
+        if not self.attempts:
+            return 0.0
+        return sum(a.accuracy for a in self.attempts) / len(self.attempts)
 
 
 @dataclass(slots=True)
@@ -71,14 +81,6 @@ class StatsPage:
             return 1
         return (self.total_users + self.page_size - 1) // self.page_size
 
-    @property
-    def has_prev(self) -> bool:
-        return self.offset > 0
-
-    @property
-    def has_next(self) -> bool:
-        return self.offset + len(self.rows) < self.total_users
-
 
 class StatsService:
     def __init__(self, session: AsyncSession):
@@ -96,45 +98,49 @@ class StatsService:
         page_size: int = PAGE_SIZE,
     ) -> StatsPage:
         since = self.since_for(period)
+        finished_statuses = (
+            AttemptSessionStatus.COMPLETED,
+            AttemptSessionStatus.ABORTED,
+        )
 
-        # "Уникальные правильные" — для (user, question) считаем 1, если был хоть один is_correct ответ.
-        correct_unique = func.count(
-            distinct(TestAttempt.question_id)
-        ).filter(TestAttempt.is_correct.is_(True))
+        base_filter = (
+            AttemptSession.status.in_(finished_statuses),
+            AttemptSession.ended_at.is_not(None),
+            AttemptSession.ended_at >= since,
+        )
 
         total_users_q = await self.session.execute(
-            select(func.count(distinct(TestAttempt.bot_user_id))).where(
-                TestAttempt.created_at >= since
+            select(func.count(distinct(AttemptSession.bot_user_id))).where(
+                *base_filter
             )
         )
         total_users = int(total_users_q.scalar_one() or 0)
 
-        rows_result = await self.session.execute(
+        latest_attempt_at = func.max(AttemptSession.ended_at).label("latest_attempt")
+        users_q = await self.session.execute(
             select(
                 BotUser.id,
                 BotUser.telegram_id,
                 BotUser.telegram_username,
                 BotUser.student_id,
-                correct_unique.label("correct"),
+                latest_attempt_at,
             )
-            .join(TestAttempt, TestAttempt.bot_user_id == BotUser.id)
-            .where(TestAttempt.created_at >= since)
+            .join(AttemptSession, AttemptSession.bot_user_id == BotUser.id)
+            .where(*base_filter)
             .group_by(BotUser.id)
-            .order_by(correct_unique.desc(), BotUser.id)
+            .order_by(latest_attempt_at.desc(), BotUser.id)
             .offset(max(offset, 0))
             .limit(page_size)
         )
 
         rows: list[UserStats] = []
         user_id_to_row: dict[int, UserStats] = {}
-        for user_id, tg_id, tg_username, student_id, _correct in rows_result.all():
+        for user_id, tg_id, tg_username, student_id, _latest in users_q.all():
             row = UserStats(
                 user_id=user_id,
                 telegram_id=tg_id,
                 telegram_username=tg_username,
                 student_id=student_id,
-                correct=0,
-                total=0,
             )
             rows.append(row)
             user_id_to_row[user_id] = row
@@ -149,54 +155,47 @@ class StatsService:
                 rows=[],
             )
 
-        # Per (user, subject) — уникальные правильные
-        breakdown = await self.session.execute(
+        attempts_q = await self.session.execute(
             select(
-                TestAttempt.bot_user_id,
-                Subject.id,
+                AttemptSession.bot_user_id,
                 Subject.name,
-                correct_unique.label("correct"),
+                AttemptSession.correct_count,
+                AttemptSession.question_ids,
+                AttemptSession.attempt_number,
+                AttemptSession.status,
+                AttemptSession.ended_at,
             )
-            .join(Subject, Subject.id == TestAttempt.subject_id)
+            .join(Subject, Subject.id == AttemptSession.subject_id)
             .where(
-                TestAttempt.created_at >= since,
-                TestAttempt.bot_user_id.in_(list(user_id_to_row.keys())),
+                *base_filter,
+                AttemptSession.bot_user_id.in_(list(user_id_to_row.keys())),
             )
-            .group_by(TestAttempt.bot_user_id, Subject.id, Subject.name)
+            .order_by(AttemptSession.ended_at.desc())
         )
 
-        per_user_subjects: dict[int, list[tuple[int, str, int]]] = {}
-        subject_ids: set[int] = set()
-        for user_id, sub_id, sub_name, correct in breakdown.all():
-            per_user_subjects.setdefault(user_id, []).append(
-                (int(sub_id), sub_name, int(correct))
-            )
-            subject_ids.add(int(sub_id))
-
-        # Всего активных вопросов в каждом из встреченных предметов
-        totals_per_subject: dict[int, int] = {}
-        if subject_ids:
-            totals_q = await self.session.execute(
-                select(Question.subject_id, func.count(Question.id))
-                .where(
-                    Question.subject_id.in_(list(subject_ids)),
-                    Question.is_active.is_(True),
+        for (
+            user_id,
+            subject_name,
+            correct_count,
+            question_ids,
+            attempt_number,
+            status,
+            ended_at,
+        ) in attempts_q.all():
+            row = user_id_to_row.get(int(user_id))
+            if row is None:
+                continue
+            total = len(question_ids or [])
+            row.attempts.append(
+                AttemptStat(
+                    subject_name=subject_name,
+                    correct=int(correct_count or 0),
+                    total=total,
+                    attempt_number=int(attempt_number or 0),
+                    status=AttemptSessionStatus(status),
+                    finished_at=ended_at,
                 )
-                .group_by(Question.subject_id)
             )
-            totals_per_subject = {int(sid): int(cnt) for sid, cnt in totals_q.all()}
-
-        # Сборка breakdown + агрегатов по юзерам
-        for user_id, row in user_id_to_row.items():
-            entries = per_user_subjects.get(user_id, [])
-            entries.sort(key=lambda e: e[2], reverse=True)
-            for sub_id, sub_name, correct in entries:
-                total = totals_per_subject.get(sub_id, 0)
-                row.by_subject.append(
-                    SubjectStat(subject_name=sub_name, correct=correct, total=total)
-                )
-                row.correct += correct
-                row.total += total
 
         return StatsPage(
             period=period,
