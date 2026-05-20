@@ -15,8 +15,13 @@ JSON format (one subject per file):
   ]
 }
 
-Idempotent: subjects matched by name, questions by (subject, text). Existing
-rows are not duplicated; new questions/options are appended.
+Behavior:
+  - Subjects matched by name. Existing subject keeps its rows; new questions
+    are appended.
+  - Question dedup is checked against the DB state BEFORE the run. Questions
+    that match an existing (subject, text) pair in DB are skipped.
+  - Duplicates WITHIN one file are NOT deduplicated — both copies are inserted.
+  - Different subjects with identical question texts are independent.
 
 Run inside the running backend container:
     docker compose exec backend poetry run python -m apps.testing.cli.import_json
@@ -62,18 +67,20 @@ async def _import_subject(session: AsyncSession, payload: dict) -> ImportStats:
         session.add(subject)
         await session.flush()
         stats.subjects = 1
-    elif "is_active" in payload:
-        subject.is_active = is_active
+        existing_texts: set[str] = set()
+    else:
+        if "is_active" in payload:
+            subject.is_active = is_active
+        existing_rows = await session.execute(
+            select(Question.text).where(Question.subject_id == subject.id)
+        )
+        existing_texts = {row[0] for row in existing_rows.all()}
 
     for q_payload in payload.get("questions", []):
         q_text = q_payload["text"]
-        existing_q = await session.execute(
-            select(Question).where(
-                Question.subject_id == subject.id,
-                Question.text == q_text,
-            )
-        )
-        if existing_q.scalar_one_or_none() is not None:
+        # Dedup ONLY against the DB state captured before the run started.
+        # Within-file duplicates are intentionally inserted as separate rows.
+        if q_text in existing_texts:
             stats.skipped_questions += 1
             continue
 
