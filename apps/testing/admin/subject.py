@@ -14,7 +14,6 @@ class SubjectAdmin(AdminMixin, ModelView, model=Subject):
         Subject.id,
         Subject.name,
         Subject.is_active,
-        Subject.questions_per_attempt,
         Subject.created_at,
     ]
     column_searchable_list = [Subject.name]
@@ -23,9 +22,8 @@ class SubjectAdmin(AdminMixin, ModelView, model=Subject):
         "id": "ID",
         "name": "Nomi",
         "is_active": "Faol",
-        "questions_per_attempt": "Bir urinishdagi savollar",
         "created_at": "Yaratilgan",
     }
 
-    form_create_rules = ["name", "is_active", "questions_per_attempt"]
-    form_edit_rules = ["name", "is_active", "questions_per_attempt"]
+    form_create_rules = ["name", "is_active"]
+    form_edit_rules = ["name", "is_active"]

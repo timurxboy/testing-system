@@ -1,0 +1,51 @@
+{
+  "subject": "Matematika",
+  "is_active": true,
+  "questions": [
+    {
+      "text": "2 + 2 * 2 nechaga teng?",
+      "options": [
+        { "text": "4", "correct": false },
+        { "text": "6", "correct": true },
+        { "text": "8", "correct": false },
+        { "text": "10", "correct": false }
+      ]
+    },
+    {
+      "text": "9 sonining kvadrati nechaga teng?",
+      "options": [
+        { "text": "18", "correct": false },
+        { "text": "72", "correct": false },
+        { "text": "81", "correct": true },
+        { "text": "99", "correct": false }
+      ]
+    },
+    {
+      "text": "To'g'ri burchakda necha gradus bor?",
+      "options": [
+        { "text": "45°", "correct": false },
+        { "text": "60°", "correct": false },
+        { "text": "90°", "correct": true },
+        { "text": "180°", "correct": false }
+      ]
+    },
+    {
+      "text": "0! (nol faktorial) nechaga teng?",
+      "options": [
+        { "text": "0", "correct": false },
+        { "text": "1", "correct": true },
+        { "text": "Aniqlanmagan", "correct": false },
+        { "text": "∞", "correct": false }
+      ]
+    },
+    {
+      "text": "1 dan 10 gacha nechta tub son bor?",
+      "options": [
+        { "text": "3", "correct": false },
+        { "text": "4", "correct": true },
+        { "text": "5", "correct": false },
+        { "text": "6", "correct": false }
+      ]
+    }
+  ]
+}

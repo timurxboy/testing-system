@@ -1,6 +1,6 @@
 .PHONY: install pre-commit-install lint format typecheck check \
        migrate migration upgrade downgrade migrate-history \
-       createsuperuser run bot seed seed-reset
+       createsuperuser run bot seed seed-reset import-json
 
 # Все make-команды ниже рассчитаны на локальный запуск через Poetry.
 # На Windows (или там, где нет Poetry) выполняйте эквивалент внутри
@@ -88,3 +88,12 @@ seed:
 # Docker: docker compose exec backend poetry run python -m apps.testing.cli.seed --reset
 seed-reset:
 	poetry run python -m apps.testing.cli.seed --reset
+
+# ---- Import JSON ----
+# Импорт предметов/вопросов/вариантов из JSON-файлов в папке ./testing/.
+# Идемпотентно: дубликаты не создаются.
+# Можно передать конкретный файл/папку:  make import-json p=testing/matematika.json
+# Docker: docker compose exec backend poetry run python -m apps.testing.cli.import_json
+# Docker (файл): docker compose exec backend poetry run python -m apps.testing.cli.import_json testing/matematika.json
+import-json:
+	poetry run python -m apps.testing.cli.import_json $(p)

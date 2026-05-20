@@ -19,16 +19,25 @@ QCOUNT_CB_PREFIX = "qcount:"
 MAX_OPTIONS_PER_ROW = 4
 
 
+_QUESTION_COUNT_LABELS: dict[int, str] = {
+    25: "Past",
+    50: "O'rta",
+    100: "Yuqori",
+}
+
+
 def question_count_keyboard(
     choices: Iterable[int], *, current: int | None = None
 ) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     for n in choices:
-        label = f"• {n} •" if current == n else str(n)
+        label_word = _QUESTION_COUNT_LABELS.get(n)
+        base = f"{label_word} — {n}" if label_word else str(n)
+        text = f"• {base} •" if current == n else base
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=label, callback_data=f"{QCOUNT_CB_PREFIX}{n}"
+                    text=text, callback_data=f"{QCOUNT_CB_PREFIX}{n}"
                 )
             ]
         )
